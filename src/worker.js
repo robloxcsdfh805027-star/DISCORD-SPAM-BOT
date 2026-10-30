@@ -4,16 +4,41 @@ const SEND_INTERVAL_MS = 2000;
 const COOLDOWN_SECONDS = 60;
 
 function hexToBytes(hex) {
-  if (!/^[0-9a-f]{128}$/i.test(hex)) throw new Error("Invalid Discord public key");
-  return Uint8Array.from(hex.match(/.{2}/g), (byte) => parseInt(byte, 16));
+  const normalized = typeof hex === "string" ? hex.trim() : "";
+  if (!/^[0-9a-f]{128}$/i.test(normalized)) {
+    throw new Error("Discord public key must be exactly 128 hexadecimal characters");
+  }
+  return Uint8Array.from(normalized.match(/.{2}/g), (byte) => parseInt(byte, 16));
 }
 
 async function verifyDiscordRequest(request, rawBody, publicKeyHex) {
   const signature = request.headers.get("X-Signature-Ed25519");
   const timestamp = request.headers.get("X-Signature-Timestamp");
-  if (!signature || !timestamp || !publicKeyHex) return false;
+
+  if (!signature || !timestamp || !publicKeyHex) {
+    console.warn("Discord signature verification rejected: required header or public key is missing", {
+      hasSignature: Boolean(signature),
+      hasTimestamp: Boolean(timestamp),
+      hasPublicKey: Boolean(publicKeyHex),
+    });
+    return false;
+  }
+
+  if (!/^[0-9a-f]{128}$/i.test(signature)) {
+    console.warn("Discord signature verification rejected: signature format is invalid");
+    return false;
+  }
+
+  if (!/^\\d{1,16}$/.test(timestamp)) {
+    console.warn("Discord signature verification rejected: timestamp format is invalid");
+    return false;
+  }
+
   const timestampSeconds = Number(timestamp);
-  if (!Number.isFinite(timestampSeconds) || Math.abs(Date.now() / 1000 - timestampSeconds) > 300) return false;
+  if (!Number.isFinite(timestampSeconds) || Math.abs(Date.now() / 1000 - timestampSeconds) > 300) {
+    console.warn("Discord signature verification rejected: timestamp is outside the 5-minute validity window");
+    return false;
+  }
 
   try {
     const key = await crypto.subtle.importKey(
@@ -25,12 +50,19 @@ async function verifyDiscordRequest(request, rawBody, publicKeyHex) {
     );
     const message = new TextEncoder().encode(timestamp + rawBody);
     const signatureBytes = Uint8Array.from(
-      signature.match(/.{2}/g) ?? [],
+      signature.match(/.{2}/g),
       (byte) => parseInt(byte, 16),
     );
-    if (signatureBytes.length !== 64) return false;
-    return await crypto.subtle.verify("Ed25519", key, signatureBytes, message);
-  } catch {
+    const verified = await crypto.subtle.verify("Ed25519", key, signatureBytes, message);
+    if (!verified) {
+      console.warn("Discord signature verification rejected: Ed25519 signature did not match");
+    }
+    return verified;
+  } catch (error) {
+    console.error("Discord signature verification error", {
+      name: error?.name ?? "Error",
+      message: error?.message ?? "Unknown verification error",
+    });
     return false;
   }
 }
