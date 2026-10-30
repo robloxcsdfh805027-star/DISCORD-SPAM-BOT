@@ -29,7 +29,7 @@ async function verifyDiscordRequest(request, rawBody, publicKeyHex) {
     return false;
   }
 
-  if (!/^\\d{1,16}$/.test(timestamp)) {
+  if (!/^[0-9]{1,16}$/.test(timestamp)) {
     console.warn("Discord signature verification rejected: timestamp format is invalid");
     return false;
   }
