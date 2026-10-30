@@ -1,6 +1,7 @@
 const DISCORD_API = "https://discord.com/api/v10";
 const MAX_MESSAGE_LENGTH = 1800;
 const SEND_INTERVAL_MS = 2000;
+const COOLDOWN_SECONDS = 60;
 
 function hexToBytes(hex) {
   if (!/^[0-9a-f]{128}$/i.test(hex)) throw new Error("Invalid Discord public key");
@@ -45,7 +46,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function sendFiveMessages(env, channelId, messages) {
+async function sendMessages(env, channelId, messages) {
   for (let index = 0; index < messages.length; index += 1) {
     if (index > 0) await sleep(SEND_INTERVAL_MS);
     const response = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
@@ -94,31 +95,21 @@ export default {
       });
     }
 
-    const permissions = BigInt(interaction.member?.permissions ?? "0");
-    const ADMINISTRATOR = 1n << 3n;
-    const MANAGE_GUILD = 1n << 5n;
-    if ((permissions & (ADMINISTRATOR | MANAGE_GUILD)) === 0n) {
-      return json({
-        type: 4,
-        data: { content: "只有具備管理伺服器或管理員權限的人可以使用此公告指令。", flags: 64 },
-      });
+    const options = command.options[0].options ?? [];
+    const count = options.find((option) => option.name === "count")?.value;
+    if (!Number.isInteger(count) || count < 1 || count > 5) {
+      return json({ type: 4, data: { content: "請選擇 1 到 5 則訊息。", flags: 64 } });
     }
 
-    const options = command.options[0].options ?? [];
-    const messages = [1, 2, 3, 4, 5].map((number) =>
-      options.find((option) => option.name === `message${number}`)?.value?.trim() ?? "",
+    const messages = Array.from({ length: count }, (_, index) =>
+      options.find((option) => option.name === `message${index + 1}`)?.value?.trim() ?? "",
     );
-
     if (messages.some((message) => !message || message.length > MAX_MESSAGE_LENGTH)) {
       return json({
         type: 4,
-        data: {
-          content: "請提供 5 則非空訊息，每則最多 1800 個字元。",
-          flags: 64,
-        },
+        data: { content: `你選擇發送 ${count} 則，請填寫前 ${count} 個訊息欄位；每則最多 1800 個字元。`, flags: 64 },
       });
     }
-
     const channelId = interaction.channel_id;
     if (!channelId || !env.DISCORD_BOT_TOKEN) {
       return json({
@@ -127,13 +118,25 @@ export default {
       });
     }
 
-    ctx.waitUntil(sendFiveMessages(env, channelId, messages));
+    const userId = interaction.member?.user?.id ?? interaction.user?.id;
+    const guildId = interaction.guild_id;
+    if (!userId || !guildId) {
+      return json({ type: 4, data: { content: "此指令只能在伺服器文字頻道使用。", flags: 64 } });
+    }
+
+    const cooldownRequest = new Request("https://cooldown.discord-custom-announcements/" + guildId + "/" + userId);
+    const cache = caches.default;
+    if (await cache.match(cooldownRequest)) {
+      return json({ type: 4, data: { content: "你剛剛已使用過公告功能，請等 60 秒再試。", flags: 64 } });
+    }
+    await cache.put(cooldownRequest, new Response("cooldown", {
+      headers: { "Cache-Control": `max-age=${COOLDOWN_SECONDS}` },
+    }));
+
+    ctx.waitUntil(sendMessages(env, channelId, messages));
     return json({
       type: 4,
-      data: {
-        content: "已開始依序發布 5 則公告。訊息會以機器人帳號顯示。",
-        flags: 64,
-      },
+      data: { content: `已開始依序發布 ${count} 則訊息。訊息會以機器人帳號顯示。`, flags: 64 },
     });
   },
 };
