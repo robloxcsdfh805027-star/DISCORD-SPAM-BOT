@@ -1,0 +1,7 @@
+name = "discord-spam-bot"
+main = "worker.js"
+compatibility_date = "2026-10-30"
+
+[[kv_namespaces]]
+binding = "RATE_LIMITS"
+id = "e1d5e72893c74ee7b9e6ff25a93564b0"
