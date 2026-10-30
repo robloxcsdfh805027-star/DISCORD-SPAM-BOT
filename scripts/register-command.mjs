@@ -9,6 +9,7 @@ if (!applicationId || !guildId || !botToken) {
 const command = {
   name: "custom",
   description: "管理員公告工具",
+  default_member_permissions: "32",
   options: [
     {
       type: 1,
