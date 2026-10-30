@@ -11,6 +11,8 @@ async function verifyDiscordRequest(request, rawBody, publicKeyHex) {
   const signature = request.headers.get("X-Signature-Ed25519");
   const timestamp = request.headers.get("X-Signature-Timestamp");
   if (!signature || !timestamp || !publicKeyHex) return false;
+  const timestampSeconds = Number(timestamp);
+  if (!Number.isFinite(timestampSeconds) || Math.abs(Date.now() / 1000 - timestampSeconds) > 300) return false;
 
   try {
     const key = await crypto.subtle.importKey(
