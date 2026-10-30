@@ -2,12 +2,13 @@
 
 Cloudflare Worker for a Discord slash command: `/custom spam`.
 
-It posts exactly five administrator-supplied messages, in order, to the channel where the command was used. Messages are posted by the bot account; Discord members see the bot as the sender. The command user is not added to the message text.
+It posts 1–5 messages, in order, to the channel where the command was used. Any member of the server can run it. Messages are posted by the bot account; Discord members see the bot as the sender.
 
 ## Safety and limits
 
-- Only members with **Manage Server** or **Administrator** permission can run it.
-- Exactly five messages per invocation; each message is limited to 1,800 characters.
+- Any member of the server can run it.
+- Choose 1–5 messages per invocation; each message is limited to 1,800 characters.
+- A 60-second per-user cooldown is applied using the Worker cache; cache-based limits are best-effort and may vary across Cloudflare locations.
 - Two seconds between messages.
 - Automatic @everyone, role, and user mentions are disabled.
 - Use this only for authorized server announcements. Do not use it to flood channels or contact people without consent.
@@ -61,10 +62,10 @@ The command appears as `/custom spam` in that server.
 
 ## 4. Use it
 
-Run `/custom spam` and fill in `message1` through `message5`. The bot posts each message in the current channel.
+Run `/custom spam`, choose `count` from 1 to 5, then fill in the matching message fields starting with `message1`. The bot posts those messages in the current channel.
 
 ## Project layout
 
-- `src/worker.js` — verifies Discord interaction signatures, checks permissions, and sends messages.
+- `src/worker.js` — verifies Discord interaction signatures, applies basic limits, and sends messages.
 - `scripts/register-command.mjs` — registers the guild slash command.
 - `wrangler.jsonc` — Cloudflare Worker configuration.
