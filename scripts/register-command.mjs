@@ -8,20 +8,29 @@ if (!applicationId || !guildId || !botToken) {
 
 const command = {
   name: "custom",
-  description: "管理員公告工具",
-  default_member_permissions: "32",
+  description: "伺服器訊息發布工具",
   options: [
     {
       type: 1,
       name: "spam",
-      description: "依序發布五則公告訊息",
-      options: [1, 2, 3, 4, 5].map((number) => ({
-        type: 3,
-        name: `message${number}`,
-        description: `第 ${number} 則公告內容`,
-        required: true,
-        max_length: 1800
-      }))
+      description: "選擇發布 1 到 5 則訊息",
+      options: [
+        {
+          type: 4,
+          name: "count",
+          description: "要發布的訊息數量（1 到 5）",
+          required: true,
+          min_value: 1,
+          max_value: 5
+        },
+        ...[1, 2, 3, 4, 5].map((number) => ({
+          type: 3,
+          name: `message${number}`,
+          description: `第 ${number} 則訊息內容`,
+          required: false,
+          max_length: 1800
+        }))
+      ]
     }
   ]
 };
